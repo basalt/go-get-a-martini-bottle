@@ -1,0 +1,7 @@
+[program:{{ package_name }}]
+command={{ srv_path }}{{ domain }}/lib/{{ package_name }}/hello_martini
+directory={{ srv_path }}{{ domain }}/lib/{{ package_name}}/
+user=www-data
+autostart=true
+autorestart=true
+redirect_stderr=True

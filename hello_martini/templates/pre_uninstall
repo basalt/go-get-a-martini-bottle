@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+
+# supervisord
+supervisorctl stop {{ package_name }}
+supervisorctl remove {{ package_name }}
+
+# nginx
+unlink /etc/nginx/sites-enabled/{{ domain }}
+/etc/init.d/nginx reload
+
+# remove cache files
+rm -rf /home/web/{{ domain }}/cache/*
