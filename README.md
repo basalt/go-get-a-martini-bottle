@@ -1,5 +1,5 @@
 # What is it?
-This is just a quick and dirty example of how the deployment of a go web application could look like. For this purpose a hello world martini application is build and packaged with the help of invoke and fpm.
+This is just a quick and dirty example of how the deployment of a go web application could look like with debian packages. For this purpose a hello world martini application is build and packaged with the help of invoke and fpm.
 
 # Dependencies
 * [invoke](https://github.com/pyinvoke/invoke)
