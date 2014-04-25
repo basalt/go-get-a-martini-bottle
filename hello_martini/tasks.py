@@ -10,8 +10,10 @@ env = Environment(loader=FileSystemLoader('templates'))
 
 from shutil import copy
 
+GOPATH="/tmp/gopath/martini/"
+os.environ['GOPATH'] = GOPATH
 
-@task
+@task()
 def clean():
     run("rm -f post_install.sh pre_uninstall.sh")
     run("rm -rf ./build")
@@ -21,16 +23,18 @@ def clean():
 
 @task
 def clean_deps():
-    pass
-
+    global GOPATH
+    run("rm -rf %s" % (GOPATH, ))
 
 
 @task
-def deps(config):
+def deps(*args, **kwargs):
+    global GOPATH
+    mkdirp(GOPATH)
     run("go get -d")
 
 
-@task("config_nginx", "config_supervisor", "config_post_install", "config_pre_uninstall")
+@task("deps", "config_nginx", "config_supervisor", "config_post_install", "config_pre_uninstall")
 def build_deb(config):
     run("go build")
     parser = _get_ini_parser(config)
@@ -54,7 +58,6 @@ def build_deb(config):
             'major': get_major_version(), 
             'minor': get_minor_version()
         }
-
 
     # build the deb package
     run("""\
