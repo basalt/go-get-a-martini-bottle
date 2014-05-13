@@ -1,56 +1,63 @@
 # -*- coding: utf-8 -*-
 
-import sys
 import os
+import sys
+import yaml
 from invoke import run, task
 from tasks_helper import *
-
-from jinja2 import Template, Environment, FileSystemLoader
-env = Environment(loader=FileSystemLoader('templates'))
-
-from shutil import copy
 
 GOPATH="/tmp/gopath/martini/"
 os.environ['GOPATH'] = GOPATH
 
 @task()
-def clean():
-    run("rm -f post_install.sh pre_uninstall.sh")
+def clean(*args, **kwargs):
+    """\
+    Remove all build files, configs and packages."
+    """
     run("rm -rf ./build")
+    run("rm -rf ./build_configs")
     run("rm -f *.deb")
     run("go clean")
 
 
 @task
 def clean_deps():
+    """\
+    Remove dependencies.
+    """
     global GOPATH
     run("rm -rf %s" % (GOPATH, ))
 
 
 @task
 def deps(*args, **kwargs):
+    """\
+    Fetch dependencies.
+    """
     global GOPATH
     mkdirp(GOPATH)
     run("go get -d")
 
 
-@task("deps", "config_nginx", "config_supervisor", "config_post_install", "config_pre_uninstall")
+@task("deps", "clean", "prepare_paths", "config_nginx", "config_supervisor", "config_post_install", "config_pre_uninstall")
 def build_deb(config):
+    """\
+    Prepares the build and generates the package.
+    """
+    # get values from config
+    stream = file(config, 'r')
+    config_values = yaml.load(stream)
+
+    base_path = config_values['build-vars']['srv_path'] + config_values['build-vars']['domain']
+    
+    # build server.go and copy to …<domain>/lib/<package_name>/.
     run("go build")
-    parser = _get_ini_parser(config)
-    config_values = parser.as_dict()['general']
-    base_path = Template("{{ srv_path }}{{ domain }}").render(config_values)
-    for folder in ['lib', 'htdocs', 'auth']:
-        mkdirp("./build" + os.path.join(base_path, folder))
-    mkdirp("./build/etc/nginx/sites-available")
-    mkdirp("./build/etc/supervisor/conf.d")
-    mkdirp("./build/%s/lib/%s" % (base_path, config_values['package_name']))
     run("cp -r ./%s build/%s/lib/%s/." % \
-        (config_values['binary_name'], base_path, config_values['package_name']))
+        (config_values['build-vars']['binary_name'], base_path, config_values['name']))
     
     # copy configs
-    run("mv %s ./build/etc/nginx/sites-available/." % (config_values['domain'], ))
-    run("mv %s.conf ./build/etc/supervisor/conf.d/." % (config_values['domain'], ))
+    run("cp ./build_configs/%s ./build/etc/nginx/sites-available/." % (config_values['build-vars']['domain'], ))
+    run("cp ./build_configs/%s.conf ./build/etc/supervisor/conf.d/." % (config_values['build-vars']['domain'], ))
     
     # generate version number
     version = "%(major)s.%(minor)s" % \
@@ -59,81 +66,69 @@ def build_deb(config):
             'minor': get_minor_version()
         }
 
-    # build the deb package
-    run("""\
-        fpm -s dir \
-            -t deb \
-            -n %(package_name)s \
-            -v %(version)s \
-            -a all \
-            --license "MIT" \
-            -m "Jochen Breuer <breuer@dajool.com>" \
-            --url "http://dajool.com" \
-            --deb-user root \
-            --deb-group root \
-            --config-files /etc/nginx/sites-available/%(domain)s \
-            --config-files /etc/supervisor/conf.d/%(domain)s.conf \
-            --after-install ./post_install.sh \
-            --before-remove ./pre_uninstall.sh \
-            -d "supervisor" \
-            -d "nginx" \
-            -C ./build \
-            etc srv""" % {
-                'package_name': config_values['package_name'],
-                'domain': config_values['domain'],
-                'version': version, 
-            })
+    package('configs/go.dajool.com.yaml', {'version': version})
     
-
-@task(pre=["config_post_install", "config_nginx", "config_supervisor"])
-def build_configs(config):
-    pass
+@task()
+def prepare_paths(config):
+    """\
+    Prepare folder structure.
+    """
+    
+    # get values from config
+    stream = file(config, 'r')
+    config_values = yaml.load(stream)
+    base_path = config_values['build-vars']['srv_path'] + \
+        config_values['build-vars']['domain']
+    
+    # make directories
+    for folder in ['lib', 'htdocs', 'auth']:
+        mkdirp("./build" + os.path.join(base_path, folder))
+    mkdirp("./build/etc/nginx/sites-available")
+    mkdirp("./build/etc/supervisor/conf.d")
+    mkdirp("./build/%s/lib/%s" % (base_path, config_values['name']))
+    mkdirp("./build_configs")
 
 
 @task
 def config_pre_uninstall(config):
-    _generate_config("pre_uninstall", config, "pre_uninstall.sh")
+    """\
+    Generate pre uninstall script from template.
+    """
+    generate_config("pre_uninstall",
+                    config,
+                    os.path.join("build_configs", "pre_uninstall.sh"))
 
 
 @task
 def config_post_install(config):
-    _generate_config("post_install", config, "post_install.sh")
+    """\
+    Generate post install script from template.
+    """
+    generate_config("post_install",
+                    config,
+                    os.path.join("build_configs", "post_install.sh"))
 
 
 @task
 def config_nginx(config=''):
     """\
-    Generate nginx config.
+    Generate nginx config from template.
     """
-    parser = _get_ini_parser(config)
-    config_values = parser.as_dict()['general']
-    _generate_config("nginx_config", config, config_values['domain'])
+    stream = file(config, 'r')
+    config_values = yaml.load(stream)
+    generate_config("nginx_config",
+                    config,
+                    os.path.join("build_configs", config_values['build-vars']['domain']))
 
 
 @task
 def config_supervisor(config=''):
     """\
-    Gernate supervisor config.
+    Gernate supervisor config from template.
     """
-    parser = _get_ini_parser(config)
-    config_values = parser.as_dict()['general']
-    _generate_config("supervisor_config", config, config_values['domain'] + ".conf")
-
-
-def _get_ini_parser(config=''):
-    """\
-    Get the ini parser for the given path.
-    """
-    parser = DictConfigParser()
-    parser.read(config)
-    return parser
-
-
-def _generate_config(template_name, config, outputfile):
-    """\
-    Generates a config from a template and with values from the ini config.
-    """
-    parser = _get_ini_parser(config)
-    script_template = env.get_template(template_name)
-    with open(outputfile, "wb") as fh:
-        fh.write(script_template.render(parser.as_dict()['general']))
+    stream = file(config, 'r')
+    config_values = yaml.load(stream)
+    generate_config("supervisor_config",
+                    config,
+                    os.path.join("build_configs",
+                                 config_values['build-vars']['domain'] + ".conf"))
