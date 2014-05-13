@@ -66,7 +66,7 @@ def build_deb(config):
             'minor': get_minor_version()
         }
 
-    package('configs/go.dajool.com.yaml', {'version': version})
+    package(config, {'version': version})
     
 @task()
 def prepare_paths(config):
