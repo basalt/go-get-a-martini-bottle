@@ -7,8 +7,8 @@ This is just a quick and dirty example of how the deployment of a go web applica
 * and [golang](http://golang.org/)
 
 # Building the deb file
-1) `cd hello_martini`
-2) `invoke build_deb --config configs/go.dajool.com`
+1) `cd hello_martini`  
+2) `invoke build_deb --config configs/go.dajool.com.yaml`  
 invoke then creates the needed folder structure and generates all the configs and post-/pre-install scripts we want in this demo. You might want to change the `domain_name` if you actually want to install this package. Also take a look at the folder structure first.
 
 # Installation
