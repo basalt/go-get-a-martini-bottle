@@ -7,10 +7,13 @@ syntax: glob
 .cvs
 *.elc
 *.pyc
+*.deb
+*.rpm
 *~
 .*.swp
 nbproject
 build/
+build_configs/
 *.mode1v3
 *.pbxuser
 *.db
