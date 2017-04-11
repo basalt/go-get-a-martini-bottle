@@ -17,6 +17,7 @@ def clean(*args, **kwargs):
     run("rm -rf ./build")
     run("rm -rf ./build_configs")
     run("rm -f *.deb")
+    run("rm -f *.rpm")
     run("go clean")
 
 
@@ -40,7 +41,7 @@ def deps(*args, **kwargs):
 
 
 @task("deps", "clean", "prepare_paths", "config_nginx", "config_supervisor", "config_post_install", "config_pre_uninstall")
-def build_deb(config):
+def build(config):
     """\
     Prepares the build and generates the package.
     """
